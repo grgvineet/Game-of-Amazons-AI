@@ -376,13 +376,13 @@ int regions(Board* board, int playerId) {
 }
 
 int eval(Board* board, int playerId) {
-    return mobility(board, playerId);
+    //return mobility(board, playerId);
     //return territory(board, playerId);
     //return territoryAndMobility(board, playerId);
 
     // Best eval
     // 2*regions + 5*territory + 3*minmobility
-    //return 2*regions(board, playerId) + 5*territory(board, playerId) + 3*minMobility(board, playerId);
+    return 2*regions(board, playerId) + 5*territory(board, playerId) + 3*minMobility(board, playerId);
 }
 
 void playMove(Board* board, Move* move) {
@@ -514,11 +514,9 @@ int main() {
 
 
     int turn = getTurnNumber(&board);
-    if (turn > 45) depth = 6;
-    else if (turn > 40) depth = 5;
-    else if (turn > 35) depth = 4;
-    else if (turn > 30) depth = 3;
-    else if (turn > 25) depth = 2;
+    if (turn > 50) depth = 4;
+    else if (turn > 40) depth = 3;
+    else if (turn > 30) depth = 2;
     else if (turn > 20) depth = 1;
     else depth = 0;
 //    depth = 0;
