@@ -26,6 +26,7 @@ int territoryAndMobility(Board* board, int playerId);
 int minMobility(Board* board, int playerId);
 int regions(Board* board, int playerId);
 int eval(Board* board, int playerId);
+void orderMoves(Board* board, vector<Move> & moves);
 
 // Move playing functions
 void playMove(Board* board, Move* move);
@@ -48,6 +49,10 @@ class Move {
 public:
     int srcX, srcY, dstX, dstY, arrowX, arrowY;
 
+    Move() {
+
+    }
+
     Move (int sX,int sY,int dX,int dY,int aX,int aY) {
         srcX = sX;
         srcY = sY;
@@ -64,10 +69,6 @@ class Board {
 
 public:
 
-    Board() {
-//         setInitialBoard();
-    }
-
     void setValue(int x, int y,int value) {
         board[x][y] = value;
     }
@@ -77,6 +78,8 @@ public:
     }
 
     void setInitialBoard() {
+        // Just for testing purpose
+        // Or clearing the board
         int i, j;
 
         for (i=0 ; i<SIZE ; i++) {
@@ -138,7 +141,6 @@ int mobility(Board* board, int playerId) {
 
 int territory(Board* board, int playerId) {
     int i,j,k;
-    int x, y;
     int pOneSquares = 0, pTwoSquares = 0;
     int pOneStonePly[SIZE][SIZE], pTwoStonePly[SIZE][SIZE];
 
@@ -345,7 +347,7 @@ int minMobility(Board* board, int playerId) {
                         steps++;
                     }
                 }
-                if (availableMove < minOne) {
+                if (availableMove != 0 && availableMove < minOne) { // Assuming that this condition will be true for at least one queen, since if availableMove is zero for all, game ends
                     minOne = availableMove;
                 }
             } else if (board->getValue(i, j) == PTWO) {
@@ -357,7 +359,7 @@ int minMobility(Board* board, int playerId) {
                         steps++;
                     }
                 }
-                if (availableMove < minTwo) {
+                if (availableMove != 0 && availableMove < minTwo) {
                     minTwo = availableMove;
                 }
             }
@@ -383,6 +385,37 @@ int eval(Board* board, int playerId) {
     // Best eval
     // 2*regions + 5*territory + 3*minmobility
     return 2*regions(board, playerId) + 5*territory(board, playerId) + 3*minMobility(board, playerId);
+}
+
+void orderMoves(Board* board, vector<Move> & moves) {
+    // TODO : Fix order moves
+    return;
+    int playerId = board->getValue(moves[0].srcX, moves[0].srcY);
+    int totalMoves = (int) moves.size();
+    int evals[totalMoves];
+    int i, j, key;
+    Move move;
+
+    for (i=0 ; i<totalMoves ; i++) {
+        playMove(board, &moves[i]);
+        evals[i] = eval(board, playerId);
+        undoMove(board, &moves[i]);
+    }
+
+    for (i = 1; i < totalMoves; i++)
+    {
+        key = evals[i];
+        move = moves[i];
+        j = i-1;
+        while (j >= 0 && evals[j] < key) // Use greater sign
+        {
+            evals[j+1] = evals[j];
+            moves[j+1] = moves[j];
+            j = j-1;
+        }
+        evals[j+1] = key;
+        moves[j+1] = move;
+    }
 }
 
 void playMove(Board* board, Move* move) {
@@ -477,6 +510,7 @@ int alphabeta(Board board, int depth, int playerId, int alpha, int beta) {
 
     int score = -INF, currentScore;
     vector<Move> moves = getAvailableMoves(board, playerId);
+    orderMoves(&board, moves);
     int movesSize = (int) moves.size();
     int i=0;
 
@@ -504,6 +538,7 @@ int main() {
     int player_id;
     Board board;
 
+//    freopen("/home/vineet/Desktop/indiahacks/BotChallange/input.txt", "r", stdin);
     srand(time(NULL));
 //    player_id = 1;
 //    board.setInitialBoard();
@@ -514,34 +549,36 @@ int main() {
 
 
     int turn = getTurnNumber(&board);
-    if (turn > 50) depth = 4;
-    else if (turn > 40) depth = 3;
+    if (turn > 40) depth = 4;
+    else if (turn > 35) depth = 3;
     else if (turn > 30) depth = 2;
-    else if (turn > 20) depth = 1;
+    else if (turn > 25) depth = 1;
     else depth = 0;
 //    depth = 0;
+    depth++;
 
 //    printf("Turn = %d; Depth = %d\n", turn, depth);
 
     int currentScore, score = -INF;
-//    int alpha = -INF, beta = INF;
+    int alpha = -INF, beta = INF;
     int z = rand()%(int)moves.size();
     Move move = moves[z];
+    orderMoves(&board, moves);
     for (i=0 ; i<movesSize ; i++) {
         playMove(&board, &moves[i]);
-//        currentScore = alphabeta(board, depth, otherPlayer(player_id), alpha, beta);
-        currentScore = negaMax(board, depth, otherPlayer(player_id));
+        currentScore = alphabeta(board, depth, otherPlayer(player_id), -beta, -alpha);
+//        currentScore = negaMax(board, depth, otherPlayer(player_id));
         if (currentScore > score) {
             score = currentScore;
             move = moves[i];
         }
-//        if (currentScore > alpha) {
-//            alpha = currentScore;
-//        }
+        if (currentScore > alpha) {
+            alpha = currentScore;
+        }
         undoMove(&board, &moves[i]);
-//        if (alpha >= beta) {
-//            break;
-//        }
+        if (alpha >= beta) {
+            break;
+        }
 
     }
 //    int z = rand()%(int)moves.size();
