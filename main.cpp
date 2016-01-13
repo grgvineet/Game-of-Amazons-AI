@@ -381,7 +381,149 @@ int minMobility(Board* board, int playerId) {
 }
 
 int regions(Board* board, int playerId) {
-    return 0;
+    int arr[SIZE][SIZE] = {0};
+    int i, j, k;
+
+    int dirX[] = {-1, -1, -1, 0, 1, 1, 1, 0};
+    int dirY[] = {-1, 0, 1, 1, 1, 0, -1, -1};
+
+    vector<pair<int, int> > pOnePieces, pTwoPieces;
+
+    int region = 1;
+    int count;
+    vector<int> regionCount;
+    regionCount.push_back(0);
+
+    // Dividing board into regions and marking regions in a separate array
+    for (i=0 ; i<SIZE ; i++) {
+        for (j=0; j<SIZE ; j++) {
+            if (board->getValue(i, j) == EMPTY && arr[i][j] == 0) {
+                arr[i][j] = region;
+                count = 1;
+                queue<pair<int, int> > q;
+                q.push(make_pair(i,j));
+                while (!q.empty()) {
+                    pair<int, int> front = q.front();
+                    q.pop();
+                    int x = front.first, y = front.second;
+                    for (k=0 ; k<8 ; k++) {
+                        if (x+dirX[k]>=0 && x+dirX[k]<SIZE && y+dirY[k]>=0 &&
+                            y+dirY[k]<SIZE && board->getValue(x+dirX[k], y+dirY[k]) == EMPTY && arr[x+dirX[k]][y+dirY[k]] == 0) {
+                            arr[x+dirX[k]][y+dirY[k]] = region;
+                            count++;
+                            q.push(make_pair(x+dirX[k], y+dirY[k]));
+                        }
+
+                    }
+                }
+                regionCount.push_back(count);
+                region++;
+            } else if (board->getValue(i, j) == PONE) {
+                pOnePieces.push_back(make_pair(i,j));
+            } else if (board->getValue(i, j) == PTWO) {
+                pTwoPieces.push_back(make_pair(i, j));
+            }
+        }
+    }
+
+    // Two dimensional table in which value is true if piece in that region
+    bool pOneRegionInfo[100][4] = {0}, pTwoRegionInfo[100][4] = {0};
+    for (i=0 ; i<4 ; i++) {
+        int x = pOnePieces[i].first, y = pOnePieces[i].second;
+        for (k=0 ; k<8 ; k++) {
+            if (x+dirX[k]>=0 && x+dirX[k]<SIZE && y+dirY[k]>=0 &&
+                y+dirY[k]<SIZE && arr[x+dirX[k]][y+dirY[k]] != 0) {
+                pOneRegionInfo[arr[x+dirX[k]][y+dirY[k]]][i] = true;
+            }
+        }
+
+        x = pTwoPieces[i].first;
+        y = pTwoPieces[i].second;
+        for (k=0 ; k<8 ; k++) {
+            if (x+dirX[k]>=0 && x+dirX[k]<SIZE && y+dirY[k]>=0 &&
+                y+dirY[k]<SIZE && arr[x+dirX[k]][y+dirY[k]] != 0) {
+                pTwoRegionInfo[arr[x+dirX[k]][y+dirY[k]]][i] = true;
+            }
+        }
+    }
+
+    // This calculates piece value for all pieces
+    // By measuring dominant regions and shared regions of a piece on board
+    int pOneValue[4], pTwoValue[4];
+    for (i=0 ; i<4 ; i++) {
+        int numDominant = 0, numShared = 0;
+        for (j=1; j<region ; j++) {
+            if (pOneRegionInfo[j][i]) {
+                bool flag = false;
+                for (k=0 ; k<4 ; k++) {
+                    if (pTwoRegionInfo[j][k]) {
+                        flag = true;
+                        break;
+                    }
+                }
+                if (!flag) {
+                    numDominant++;
+                } else {
+                    numShared++;
+                }
+            }
+        }
+        pOneValue[i] = 2*numDominant + numShared;
+    }
+
+    for (i=0 ; i<4 ; i++) {
+        int numDominant = 0, numShared = 0;
+        for (j=1; j<region ; j++) {
+            if (pTwoRegionInfo[j][i]) {
+                bool flag = false;
+                for (k=0 ; k<4 ; k++) {
+                    if (pOneRegionInfo[j][k]) {
+                        flag = true;
+                        break;
+                    }
+                }
+                if (!flag) {
+                    numDominant++;
+                } else {
+                    numShared++;
+                }
+            }
+        }
+        pTwoValue[i] = 2*numDominant + numShared;
+    }
+
+    // Calculating score for each player
+    float pOneScore = 0.0;
+    float pTwoScore = 0.0;
+    for (i=1 ; i<region ; i++) {
+        int score = regionCount[i];
+        float pOneNum = 0.0, pTwoNum = 0.0;
+
+        for (j=0 ; j<4 ; j++) {
+            if (pOneRegionInfo[i][j]) {
+                pOneNum += 1.0/pOneValue[j];
+            }
+            if (pTwoRegionInfo[i][j]) {
+                pTwoNum += 1.0/pTwoValue[j];
+            }
+        }
+        if (pOneNum == 0.0 && pTwoNum == 0.0) {
+            // For closed regions which do not have either black or white
+            // This caused zero by zero exception
+            continue;
+        }
+        pOneScore += score*pOneNum/(pOneNum + pTwoNum);
+        pTwoScore += score*pTwoNum/(pOneNum + pTwoNum);
+    }
+
+    // Calculating final return value
+    int value = (int)((1000*(pOneScore - pTwoScore))/(pOneScore + pTwoScore));
+    if (playerId == PONE) {
+        return value;
+    } else {
+        return -value;
+    }
+
 }
 
 int eval(Board* board, int playerId) {
@@ -391,7 +533,13 @@ int eval(Board* board, int playerId) {
 
     // Best eval
     // 2*regions + 5*territory + 3*minmobility
+//    int region = regions(board, playerId);
+//    int territor = territory(board, playerId);
+//    int mobile = minMobility(board, playerId);
+//    printf("%d %d %d\n", region, territor, mobile);
+//    return 2*region + 5*territor + 3*mobile;
     return 2*regions(board, playerId) + 5*territory(board, playerId) + 3*minMobility(board, playerId);
+    //return regions(board, playerId);
 }
 
 void orderMoves(Board* board, vector<Move> & moves) {
@@ -533,7 +681,7 @@ int alphabeta(Board board, int depth, int playerId, int alpha, int beta) {
             score = currentScore;
         }
         if (currentScore > alpha) {
-            alpha = score;
+            alpha = currentScore;
         }
         undoMove(&board, &moves[i]);
         if (alpha >= beta || timeout()) {
@@ -567,7 +715,7 @@ int negaScout(Board board, int depth, int playerId, int alpha, int beta) {
             }
         }
         if (currentScore > alpha) {
-            alpha = score;
+            alpha = currentScore;
         }
         undoMove(&board, &moves[i]);
         if (alpha >= beta || timeout()) {
@@ -612,6 +760,7 @@ int main() {
     for (depth = 0; !timeout() ; depth++) {
         score = -INF;
         alpha = -INF, beta = INF;
+        // int n = beta;
         for (i = 0; i < movesSize && !timeout(); i++) {
             playMove(&board, &moves[i]);
 //            currentScore = negaMax(board, depth, otherPlayer(player_id));
