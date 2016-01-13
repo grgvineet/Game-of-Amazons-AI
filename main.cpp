@@ -12,9 +12,9 @@ using namespace std;
 #define PTWO 2
 #define WALL -1
 
-#define TIMELIMIT 0.95
+#define TIMELIMIT 0.9
 
-#define INF 10000
+#define INF 100000000
 
 class Board;
 class Move;
@@ -45,6 +45,7 @@ void input(Board* board, int* player_id);
 // AI functions
 int negaMax(Board board, int depth, int playerId);
 int alphabeta(Board board, int depth, int playerId, int alpha, int beta);
+int negaScout(Board board, int depth, int playerId ,int alpha, int beta);
 
 clock_t start = clock();
 bool timeExceeded = false;
@@ -394,10 +395,12 @@ int eval(Board* board, int playerId) {
 }
 
 void orderMoves(Board* board, vector<Move> & moves) {
-    // TODO : Fix order moves
     return;
-    int playerId = board->getValue(moves[0].srcX, moves[0].srcY);
     int totalMoves = (int) moves.size();
+    if (totalMoves == 0) {
+        return;
+    }
+    int playerId = board->getValue(moves[0].srcX, moves[0].srcY);
     int evals[totalMoves];
     int i, j, key;
     Move move;
@@ -413,7 +416,7 @@ void orderMoves(Board* board, vector<Move> & moves) {
         key = evals[i];
         move = moves[i];
         j = i-1;
-        while (j >= 0 && evals[j] < key) // Use greater sign
+        while (j >= 0 && evals[j] < key) // Use less than sign
         {
             evals[j+1] = evals[j];
             moves[j+1] = moves[j];
@@ -497,26 +500,23 @@ int negaMax(Board board, int depth, int playerId) {
     int movesSize;
     vector<Move> moves = getAvailableMoves(board, playerId);
     movesSize = (int)moves.size();
-    if (movesSize == 0) { // Penalise heavily if no move left
-        return -INF;
-    }
     for (i=0 ; i<movesSize ; i++) {
-        if (timeout()) {
-            return eval(&board, otherPlayer(playerId));
-        }
         playMove(&board, &moves[i]);
         currentScore = negaMax(board, depth-1, otherPlayer(playerId));
         if (currentScore > score) {
             score = currentScore;
         }
         undoMove(&board, &moves[i]);
+        if (timeout()) {
+            break;
+        }
     }
     return -score;
 }
 
 int alphabeta(Board board, int depth, int playerId, int alpha, int beta) {
 
-    if (depth == 0) {
+    if (depth == 0 || timeout()) {
         return eval(&board, otherPlayer(playerId));
     }
 
@@ -528,7 +528,7 @@ int alphabeta(Board board, int depth, int playerId, int alpha, int beta) {
 
     for (i=0 ; i<movesSize ; i++) {
         playMove(&board, &moves[i]);
-        currentScore = -alphabeta(board, depth - 1, otherPlayer(playerId),  -beta, -alpha);
+        currentScore = alphabeta(board, depth - 1, otherPlayer(playerId),  -beta, -alpha);
         if (currentScore > score) {
             score = currentScore;
         }
@@ -536,11 +536,47 @@ int alphabeta(Board board, int depth, int playerId, int alpha, int beta) {
             alpha = score;
         }
         undoMove(&board, &moves[i]);
-        if (alpha > beta) {
+        if (alpha >= beta || timeout()) {
             break;
         }
     }
-    return score;
+    return -score;
+}
+
+int negaScout(Board board, int depth, int playerId, int alpha, int beta) {
+    if (depth == 0 || timeout()) {
+        return eval(&board, playerId);
+    }
+
+    int score = -INF, currentScore;
+    int n = beta;
+
+    vector<Move> moves = getAvailableMoves(board, playerId);
+    orderMoves(&board, moves);
+    int movesSize = (int) moves.size();
+    int i=0;
+
+    for (i=0 ; i<movesSize ; i++) {
+        playMove(&board, &moves[i]);
+        currentScore = negaScout(board, depth - 1, otherPlayer(playerId),  -n, -alpha);
+        if (currentScore > score) {
+            if (n == beta || depth <= 1) {
+                score = currentScore;
+            } else {
+                score = negaScout(board, depth - 1, otherPlayer(playerId), -beta, -currentScore);
+            }
+        }
+        if (currentScore > alpha) {
+            alpha = score;
+        }
+        undoMove(&board, &moves[i]);
+        if (alpha >= beta || timeout()) {
+            break;
+        }
+        n = alpha + 1;
+    }
+    return -score;
+
 }
 
 bool timeout() {
@@ -564,35 +600,38 @@ int main() {
     input(&board, &player_id);
 
     vector<Move> moves = getAvailableMoves(board, player_id);
+    orderMoves(&board, moves);
     int movesSize = (int) moves.size();
 
-    int currentScore, score = -INF;
-//    int alpha = -INF, beta = INF;
+    int currentScore, score ;
+    int alpha , beta;
     int z = rand()%(int)moves.size();
     Move move = moves[z];
     Move nonFinalMove = move;
 
     for (depth = 0; !timeout() ; depth++) {
+        score = -INF;
+        alpha = -INF, beta = INF;
         for (i = 0; i < movesSize && !timeout(); i++) {
-//            orderMoves(&board, moves);
             playMove(&board, &moves[i]);
-            currentScore = negaMax(board, depth, otherPlayer(player_id));
-//            currentScore = alphabeta(board, depth, otherPlayer(player_id), -beta, -alpha);
+//            currentScore = negaMax(board, depth, otherPlayer(player_id));
+            currentScore = alphabeta(board, depth, otherPlayer(player_id), -beta, -alpha);
             if (currentScore > score) {
                 score = currentScore;
                 nonFinalMove = moves[i];
             }
-//            if (currentScore > alpha) {
-//                alpha = currentScore;
-//            }
+            if (currentScore > alpha) {
+                alpha = currentScore;
+            }
             undoMove(&board, &moves[i]);
-//            if (alpha >= beta) {
-//                break;
-//            }
+            if (alpha >= beta) {
+                break;
+            }
         }
         if(!timeExceeded) {
             move = nonFinalMove;
         }
+
     }
 //    int z = rand()%(int)moves.size();
 //    printf("%d %d\n%d %d\n%d %d",moves[z].srcX, moves[z].srcY, moves[z].dstX, moves[z].dstY, moves[z].arrowX, moves[z].arrowY );
