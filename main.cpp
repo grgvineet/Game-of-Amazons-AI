@@ -12,6 +12,8 @@ using namespace std;
 #define PTWO 2
 #define WALL -1
 
+#define TIMELIMIT 0.95
+
 #define INF 10000
 
 class Board;
@@ -42,6 +44,10 @@ void input(Board* board, int* player_id);
 // AI functions
 int negaMax(Board board, int depth, int playerId);
 int alphabeta(Board board, int depth, int playerId, int alpha, int beta);
+
+clock_t start = clock();
+bool timeExceeded = false;
+bool timeout();
 
 class Move {
 
@@ -345,7 +351,7 @@ int minMobility(Board* board, int playerId) {
                         steps++;
                     }
                 }
-                if (availableMove < minOne) {
+                if (availableMove != 0 && availableMove < minOne) { // Ignoring pieces that can't move
                     minOne = availableMove;
                 }
             } else if (board->getValue(i, j) == PTWO) {
@@ -357,7 +363,7 @@ int minMobility(Board* board, int playerId) {
                         steps++;
                     }
                 }
-                if (availableMove < minTwo) {
+                if (availableMove != 0 && availableMove < minTwo) {
                     minTwo = availableMove;
                 }
             }
@@ -449,7 +455,7 @@ void input(Board* board, int* player_id) {
 
 int negaMax(Board board, int depth, int playerId) {
 
-    if (depth == 0) {
+    if (depth == 0 || timeout()) {
         return eval(&board, otherPlayer(playerId));
     }
 
@@ -458,15 +464,21 @@ int negaMax(Board board, int depth, int playerId) {
     int movesSize;
     vector<Move> moves = getAvailableMoves(board, playerId);
     movesSize = (int)moves.size();
+    if (movesSize == 0) { // Penalise heavily if no move left
+        return -INF;
+    }
     for (i=0 ; i<movesSize ; i++) {
+        if (timeout()) {
+            return eval(&board, otherPlayer(playerId));
+        }
         playMove(&board, &moves[i]);
-        currentScore = -negaMax(board, depth-1, otherPlayer(playerId));
+        currentScore = negaMax(board, depth-1, otherPlayer(playerId));
         if (currentScore > score) {
             score = currentScore;
         }
         undoMove(&board, &moves[i]);
     }
-    return score;
+    return -score;
 }
 
 int alphabeta(Board board, int depth, int playerId, int alpha, int beta) {
@@ -497,6 +509,14 @@ int alphabeta(Board board, int depth, int playerId, int alpha, int beta) {
     return score;
 }
 
+bool timeout() {
+    if (((float) ((clock() - start)) / CLOCKS_PER_SEC) > TIMELIMIT) {
+        timeExceeded = true;
+        return true;
+    }
+    return false;
+}
+
 int main() {
     int i,j;
     int t;
@@ -512,41 +532,28 @@ int main() {
     vector<Move> moves = getAvailableMoves(board, player_id);
     int movesSize = (int) moves.size();
 
-
-    int turn = getTurnNumber(&board);
-    if (turn > 50) depth = 4;
-    else if (turn > 40) depth = 3;
-    else if (turn > 30) depth = 2;
-    else if (turn > 20) depth = 1;
-    else depth = 0;
-//    depth = 0;
-
-//    printf("Turn = %d; Depth = %d\n", turn, depth);
-
     int currentScore, score = -INF;
-//    int alpha = -INF, beta = INF;
     int z = rand()%(int)moves.size();
     Move move = moves[z];
-    for (i=0 ; i<movesSize ; i++) {
-        playMove(&board, &moves[i]);
-//        currentScore = alphabeta(board, depth, otherPlayer(player_id), alpha, beta);
-        currentScore = negaMax(board, depth, otherPlayer(player_id));
-        if (currentScore > score) {
-            score = currentScore;
-            move = moves[i];
-        }
-//        if (currentScore > alpha) {
-//            alpha = currentScore;
-//        }
-        undoMove(&board, &moves[i]);
-//        if (alpha >= beta) {
-//            break;
-//        }
+    Move nonFinalMove = move;
 
+    for (depth = 0; !timeout() ; depth++) {
+        for (i = 0; i < movesSize && !timeout(); i++) {
+            playMove(&board, &moves[i]);
+            currentScore = negaMax(board, depth, otherPlayer(player_id));
+            if (currentScore > score) {
+                score = currentScore;
+                nonFinalMove = moves[i];
+            }
+            undoMove(&board, &moves[i]);
+        }
+        if(!timeExceeded) {
+            move = nonFinalMove;
+        }
     }
 //    int z = rand()%(int)moves.size();
 //    printf("%d %d\n%d %d\n%d %d",moves[z].srcX, moves[z].srcY, moves[z].dstX, moves[z].dstY, moves[z].arrowX, moves[z].arrowY );
-    printf("%d %d\n%d %d\n%d %d\n", move.srcX, move.srcY, move.dstX, move.dstY, move.arrowX, move.arrowY);
+    printf("%d %d\n%d %d\n%d %d\n%d", move.srcX, move.srcY, move.dstX, move.dstY, move.arrowX, move.arrowY,depth);
 
     return 0;
 }
