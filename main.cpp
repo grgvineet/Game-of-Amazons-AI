@@ -12,7 +12,7 @@ using namespace std;
 #define PTWO 2
 #define WALL -1
 
-#define TIMELIMIT 0.9
+#define TIMELIMIT 0.95
 
 #define INF 100000000
 
@@ -50,6 +50,8 @@ int negaScout(Board board, int depth, int playerId ,int alpha, int beta);
 clock_t start = clock();
 bool timeExceeded = false;
 bool timeout();
+
+int history[SIZE][SIZE][SIZE][SIZE][SIZE][SIZE] = {0};
 
 class Move {
 
@@ -538,12 +540,16 @@ int eval(Board* board, int playerId) {
 //    int mobile = minMobility(board, playerId);
 //    printf("%d %d %d\n", region, territor, mobile);
 //    return 2*region + 5*territor + 3*mobile;
-    return 2*regions(board, playerId) + 5*territory(board, playerId) + 3*minMobility(board, playerId);
+    if (getTurnNumber(board) < 30) {
+        return 2*regions(board, playerId) + 5*territory(board, playerId) + 3*minMobility(board, playerId);
+    } else {
+        return territory(board, playerId);
+    }
     //return regions(board, playerId);
 }
 
 void orderMoves(Board* board, vector<Move> & moves) {
-    return;
+    // return;
     int totalMoves = (int) moves.size();
     if (totalMoves == 0) {
         return;
@@ -555,7 +561,8 @@ void orderMoves(Board* board, vector<Move> & moves) {
 
     for (i=0 ; i<totalMoves ; i++) {
         playMove(board, &moves[i]);
-        evals[i] = eval(board, playerId);
+//        evals[i] = eval(board, playerId);
+        evals[i] = history[moves[i].srcX][moves[i].srcY][moves[i].dstX][moves[i].dstY][moves[i].arrowX][moves[i].arrowY];
         undoMove(board, &moves[i]);
     }
 
@@ -599,7 +606,7 @@ int getTurnNumber(Board* board) {
             }
         }
     }
-    return count/2 + 1;
+    return count;
 }
 
 bool validateMove(Move move) {
@@ -679,6 +686,7 @@ int alphabeta(Board board, int depth, int playerId, int alpha, int beta) {
         currentScore = alphabeta(board, depth - 1, otherPlayer(playerId),  -beta, -alpha);
         if (currentScore > score) {
             score = currentScore;
+            history[moves[i].srcX][moves[i].srcY][moves[i].dstX][moves[i].dstY][moves[i].arrowX][moves[i].arrowY] = score;
         }
         if (currentScore > alpha) {
             alpha = currentScore;
@@ -767,6 +775,7 @@ int main() {
             currentScore = alphabeta(board, depth, otherPlayer(player_id), -beta, -alpha);
             if (currentScore > score) {
                 score = currentScore;
+                history[moves[i].srcX][moves[i].srcY][moves[i].dstX][moves[i].dstY][moves[i].arrowX][moves[i].arrowY] = score;
                 nonFinalMove = moves[i];
             }
             if (currentScore > alpha) {
